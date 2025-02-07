@@ -1,6 +1,31 @@
 import random
 import time
 import numpy as np
+import csv
+
+
+def get_hourly_returns(csv_filename):
+    returns = []
+    with open(csv_filename, "r") as csvfile:
+        reader = csv.reader(csvfile)
+        # Skip header if one exists:
+        header = next(reader)
+        # Read all lines (each representing one hour)
+        lines = list(reader)
+        # Compute returns for each adjacent pair
+        for i in range(len(lines) - 1):
+            current_close = float(lines[i][6])  # column index 6 is Close
+            previous_close = float(lines[i + 1][6])
+            # Calculate the percentage return:
+            ret = (current_close - previous_close) / previous_close * 100
+            # # If there's an increase, set drop to 0; if a drop, take absolute value.
+            # if ret > 0:
+            #     ret = 0
+            # else:
+            #     ret = abs(ret)
+            returns.append(ret)
+    return returns
+
 
 # This RL agent will serve as the "brain" of our smart contract based organism.
 # It will emulate a kind of "organic life" by changing the organism's traits according
@@ -24,6 +49,11 @@ EPSILON = 0.1  # Exploration probability
 market_sensitivity = 5  # Determines the impact of market drops.
 feed_sensitivity = 5  # Determines the impact of feeding.
 
+returns = get_hourly_returns("ETH_1H.csv")
+returns.reverse()
+return_index = 0
+negative = 0
+
 
 # --- Environment Simulation ---
 def discretize_state(health):
@@ -39,7 +69,19 @@ def simulate_environment(health, market_sens, feed_sens):
     """
     # TODO: dynamically get these values
     feed = random.uniform(0, 10)  # Feed increases health.
-    market_drop = random.uniform(0, 15)  # Market drop in percentage.
+    global return_index
+    global negative
+    # Use the next hourly return from the CSV data
+    if return_index >= len(returns):
+        return_index = 0  # cycle back if we run out
+    market_drop = returns[return_index]
+    return_index += 1
+
+    if market_drop > 0:
+        market_drop = 0
+    else:
+        negative += 1
+        market_drop = abs(market_drop)
 
     # Adjust the impact:
     # For feed, higher feed_sens means a stronger positive effect.
@@ -65,7 +107,9 @@ def choose_action(state):
     if random.random() < EPSILON:
         return random.randint(0, len(ACTION_DELTAS) - 1)
     else:
-        return int(np.argmax(Q[state]))
+        max_value = max(Q[state])
+        candidates = [i for i, value in enumerate(Q[state]) if value == max_value]
+        return random.choice(candidates)
 
 
 def update_Q(state, action, reward, next_state):
@@ -81,7 +125,7 @@ current_health = 50.0
 
 # For now we are testing with a number of episodes, in production it will be an infinite loop
 # In a live scenario, each loop represents one decision cycle (e.g., hourly).
-num_episodes = 1000000
+num_episodes = 10000
 for i in range(num_episodes):
     # 1. Read the current state (simulate on-chain health)
     state = discretize_state(current_health)
@@ -117,4 +161,5 @@ for i in range(num_episodes):
     current_health = new_health
 
     # 9. Wait until next decision cycle (e.g., one hour; for testing, shorten this interval)
-    time.sleep(0.00001)
+    time.sleep(0.001)
+print(negative)
