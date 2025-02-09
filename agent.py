@@ -3,14 +3,14 @@ import time
 import csv
 from web3 import Web3
 
-w3 = Web3(Web3.HTTPProvider("http://127.0.0.1:8545"))
+w3 = Web3(Web3.HTTPProvider("https://sepolia.base.org"))
 w3eth = Web3(
     Web3.HTTPProvider(
         "https://eth-mainnet.g.alchemy.com/v2/4HvmaqDcH1O3ZNkHhtFZA5ydU2rgV9Sl"
     )
 )
 
-address = "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+address = "0x004Fa7e32C47a754E5ae5687948EaAa5a06f9aE1"
 abi = '[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"finalHomeoscore","type":"uint256"}],"name":"Death","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":false,"internalType":"uint256","name":"value","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"newHomeoscore","type":"uint256"}],"name":"Fed","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"marketDropPercentage","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"decreaseAmount","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"newHomeoscore","type":"uint256"}],"name":"MarketEvent","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"newMarketSensitivity","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"newFeedSensitivity","type":"uint256"}],"name":"TraitsUpdated","type":"event"},{"inputs":[],"name":"feed","outputs":[],"stateMutability":"payable","type":"function"},{"inputs":[],"name":"feedSensitivity","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"homeoscore","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"isAlive","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"marketSensitivity","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"marketDropPercentage","type":"uint256"}],"name":"updateMarketEvent","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"newMarketSensitivity","type":"uint256"},{"internalType":"uint256","name":"newFeedSensitivity","type":"uint256"}],"name":"updateTraits","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"withdraw","outputs":[],"stateMutability":"nonpayable","type":"function"}]'
 
 eth_feed_address = "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419"

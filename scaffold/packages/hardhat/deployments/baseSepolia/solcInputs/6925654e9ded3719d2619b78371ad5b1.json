@@ -1,0 +1,36 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "contracts/Organism.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0 <0.9.0;\n\ncontract Organism {\n    uint256 public homeoscore;            // Ranges from 0 to 100\n    uint256 public marketSensitivity;     \n    uint256 public feedSensitivity;       \n    bool public isAlive;\n\n    address public owner;\n\n    event Fed(address indexed from, uint256 value, uint256 newHomeoscore);\n    event MarketEvent(uint256 marketDropPercentage, uint256 decreaseAmount, uint256 newHomeoscore);\n    event TraitsUpdated(uint256 newMarketSensitivity, uint256 newFeedSensitivity);\n    event Death(uint256 finalHomeoscore);\n\n    modifier onlyOwner() {\n        require(msg.sender == owner, \"Not authorized\");\n        _;\n    }\n\n    modifier onlyAlive() {\n        require(isAlive, \"RIP\");\n        _;\n    }\n\n    constructor() {\n        owner = msg.sender;\n        homeoscore = 50;           // Starting in the middle.\n        marketSensitivity = 5;\n        feedSensitivity = 5;\n        isAlive = true;\n    }\n\n    function feed() external payable onlyAlive {\n        require(msg.value > 0, \"Send some ETH to feed\");\n        // Using 1e15 as divisor so 0.001 ETH ~ 1 point (scaled by feedSensitivity)\n        uint256 increase = (msg.value * feedSensitivity) / 1e15;\n        homeoscore += increase;\n        if (homeoscore > 100) {\n            homeoscore = 100;\n        }\n        emit Fed(msg.sender, msg.value, homeoscore);\n        checkDeath();\n    }\n\n    function updateMarketEvent(uint256 marketDropPercentage) external onlyOwner onlyAlive {\n        // Assume marketDropPercentage is already processed so that if it's >0 then it's an actual drop.\n        uint256 decrease = (marketDropPercentage * 100 * marketSensitivity) / 100;\n        if (decrease > homeoscore) {\n            homeoscore = 0;\n        } else {\n            homeoscore -= decrease;\n        }\n        emit MarketEvent(marketDropPercentage, decrease, homeoscore);\n        checkDeath();\n    }\n\n    function updateTraits(uint256 newMarketSensitivity, uint256 newFeedSensitivity) external onlyOwner onlyAlive {\n        marketSensitivity = newMarketSensitivity;\n        feedSensitivity = newFeedSensitivity;\n        emit TraitsUpdated(newMarketSensitivity, newFeedSensitivity);\n    }\n\n    // Internal function to mark the organism as dead when terminal state is reached.\n    function checkDeath() internal {\n        if (homeoscore == 0 || homeoscore == 100) {\n            isAlive = false;\n            emit Death(homeoscore);\n        }\n    }\n\n    // Optionally, after death, the owner could withdraw the contract balance.\n    function withdraw() external onlyOwner {\n        require(!isAlive, \"Organism is still alive\");\n        payable(owner).transfer(address(this).balance);\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": true,
+      "runs": 200
+    },
+    "evmVersion": "paris",
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}
