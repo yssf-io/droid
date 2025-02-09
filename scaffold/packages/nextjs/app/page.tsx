@@ -1,13 +1,66 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { NextPage } from "next";
-import { useAccount } from "wagmi";
+import { parseEther } from "viem";
+import { useAccount, useContractRead, useReadContract, useWatchContractEvent, useWriteContract } from "wagmi";
 import { BugAntIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { Address } from "~~/components/scaffold-eth";
+import { useAllContracts } from "~~/utils/scaffold-eth/contractsData";
 
 const Home: NextPage = () => {
   const { address: connectedAddress } = useAccount();
+  const contractsData = useAllContracts();
+  const [homeoscore, setHomeoscore] = useState(0);
+  const [feedSens, setFeedSens] = useState(0);
+  const [marketSens, setMarketSens] = useState(0);
+  const { data, refetch } = useReadContract({
+    address: contractsData.Organism.address,
+    abi: contractsData.Organism.abi,
+    functionName: "homeoscore",
+  });
+  const { data: feedS } = useReadContract({
+    address: contractsData.Organism.address,
+    abi: contractsData.Organism.abi,
+    functionName: "feedSensitivity",
+  });
+  const { data: marketS } = useReadContract({
+    address: contractsData.Organism.address,
+    abi: contractsData.Organism.abi,
+    functionName: "marketSensitivity",
+  });
+  const { writeContract } = useWriteContract();
+  useWatchContractEvent({
+    address: contractsData.Organism.address,
+    abi: contractsData.Organism.abi,
+    eventName: "Fed",
+    onLogs(logs) {
+      console.log("fed", logs);
+      refetch();
+    },
+  });
+
+  const handleFeed = () =>
+    writeContract({
+      address: contractsData.Organism.address,
+      abi: contractsData.Organism.abi,
+      functionName: "feed",
+      value: parseEther("0.001"),
+    });
+
+  useEffect(() => {
+    if (data) setHomeoscore(parseInt(data.toString()));
+    if (feedS) setFeedSens(parseInt(feedS.toString()));
+    if (marketS) setMarketSens(parseInt(marketS.toString()));
+  }, [data, feedS, marketS]);
+
+  const getDroidImg = () => {
+    if (homeoscore === 0 || homeoscore === 100) return "rip.webp";
+    if (homeoscore < 40) return "low.webp";
+    else if (homeoscore > 60) return "high.webp";
+    else return "healthy.webp";
+  };
 
   return (
     <>
@@ -35,9 +88,31 @@ const Home: NextPage = () => {
             We can almost think of the smart contract as the body of the biodroid, the chain its environment and the
             agent its brain.
           </p>
+          <div className="border border-gray-400"></div>
+          <p className="text-justify">
+            For this demo, only one biodroid (the one below) has been deployed, you can see its homeoscore. For now we
+            consider that a healthy score is between 40 and 60. Below that the biodroid is tired and needs to be fed
+            while above that it becomes overfed and needs less feeding and more drops in price. At 0 or 100, it dies.
+          </p>
+          <p className="text-justify">
+            Each state will be reflected by a picture below as it's just a simple demo, but we could imagine having a
+            live animated biodroid.
+          </p>
+          <p className="text-2xl font-bold w-full text-center">Homeoscore: {homeoscore}</p>
+          <div className="w-full text-center">
+            <button
+              onClick={homeoscore > 60 ? () => {} : handleFeed}
+              disabled={homeoscore > 60}
+              className="text-center mb-4 border rounded-lg px-3 py-2 bg-blue-400 hover:bg-blue-400/80 w-fit text-white"
+            >
+              {homeoscore > 60 ? "feeding unnecessary" : "Feed me!"}
+            </button>
+          </div>
+          <img src={getDroidImg()} alt="a healthy biodroid" width="50%" className="m-auto rounded-xl" />
 
-          <img src="healthy.webp" alt="a healthy biodroid" width="50%" className="m-auto rounded-xl" />
-          <p>Feed me!</p>
+          <p className="text-lg w-full text-center">
+            Market Sensitivity: {marketSens} | Feed Sensitivity: {feedSens}
+          </p>
         </div>
       </div>
     </>
