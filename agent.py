@@ -1,7 +1,11 @@
 import random
 import time
 import csv
+import os
 from web3 import Web3
+from dotenv import load_dotenv
+
+load_dotenv()
 
 w3 = Web3(Web3.HTTPProvider("https://sepolia.base.org"))
 w3eth = Web3(
@@ -9,7 +13,7 @@ w3eth = Web3(
         "https://eth-mainnet.g.alchemy.com/v2/4HvmaqDcH1O3ZNkHhtFZA5ydU2rgV9Sl"
     )
 )
-pkey = ""
+pkey = os.environ["pkey"]
 account = w3.eth.account.from_key(pkey)
 
 address = "0x004Fa7e32C47a754E5ae5687948EaAa5a06f9aE1"
@@ -157,8 +161,6 @@ def updateTraits(market_sensitivity, feed_sensitivity):
 
     print(hash_tx.hex())
 
-
-updateTraits(5, 5)
 
 # --- Live RL Loop ---
 # Starting organism health.
