@@ -9,6 +9,8 @@ w3eth = Web3(
         "https://eth-mainnet.g.alchemy.com/v2/4HvmaqDcH1O3ZNkHhtFZA5ydU2rgV9Sl"
     )
 )
+pkey = ""
+account = w3.eth.account.from_key(pkey)
 
 address = "0x004Fa7e32C47a754E5ae5687948EaAa5a06f9aE1"
 abi = '[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"finalHomeoscore","type":"uint256"}],"name":"Death","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":false,"internalType":"uint256","name":"value","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"newHomeoscore","type":"uint256"}],"name":"Fed","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"marketDropPercentage","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"decreaseAmount","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"newHomeoscore","type":"uint256"}],"name":"MarketEvent","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"newMarketSensitivity","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"newFeedSensitivity","type":"uint256"}],"name":"TraitsUpdated","type":"event"},{"inputs":[],"name":"feed","outputs":[],"stateMutability":"payable","type":"function"},{"inputs":[],"name":"feedSensitivity","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"homeoscore","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"isAlive","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"marketSensitivity","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"marketDropPercentage","type":"uint256"}],"name":"updateMarketEvent","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"newMarketSensitivity","type":"uint256"},{"internalType":"uint256","name":"newFeedSensitivity","type":"uint256"}],"name":"updateTraits","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"withdraw","outputs":[],"stateMutability":"nonpayable","type":"function"}]'
@@ -68,11 +70,6 @@ feed_sensitivity = (
     biodroid.functions.feedSensitivity().call()
 )  # Determines the impact of feeding.
 
-returns = get_hourly_returns("ETH_1H.csv")
-returns.reverse()
-return_index = 0
-negative = 0
-
 
 # --- Environment Simulation ---
 def discretize_state(health):
@@ -92,9 +89,20 @@ def simulate_environment():
     )
     last_hour_return = (current_price - price_last_interval) / price_last_interval * 100
     if last_hour_return < 0:
-        tx = biodroid.functions.updateMarketEvent(abs(last_hour_return)).transact()
-        print(tx)
-        time.sleep(5)
+        addy = w3.eth.default_account = account.address
+        nonce = w3.eth.get_transaction_count(addy)
+
+        signed_tx = w3.eth.account.sign_transaction(
+            biodroid.functions.updateMarketEvent(
+                abs(last_hour_return)
+            ).build_transaction({"nonce": nonce}),
+            private_key=pkey,
+        )
+        hash_tx = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+        receipt = w3.eth.wait_for_transaction_receipt(hash_tx)
+
+        print("Updated Homeoscore at hash: ", hash_tx.hex())
+        time.sleep(10)
 
     homeoscore = biodroid.functions.homeoscore().call()
 
@@ -135,11 +143,22 @@ def updateTraits(market_sensitivity, feed_sensitivity):
     """
     Update the traits onchain before next iteration.
     """
-    tx = biodroid.functions.updateTraits(
-        market_sensitivity, feed_sensitivity
-    ).transact()
-    print(tx)
+    addy = w3.eth.default_account = account.address
+    nonce = w3.eth.get_transaction_count(addy)
 
+    signed_tx = w3.eth.account.sign_transaction(
+        biodroid.functions.updateTraits(
+            market_sensitivity, feed_sensitivity
+        ).build_transaction({"nonce": nonce}),
+        private_key=pkey,
+    )
+    hash_tx = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+    receipt = w3.eth.wait_for_transaction_receipt(hash_tx)
+
+    print(hash_tx.hex())
+
+
+updateTraits(5, 5)
 
 # --- Live RL Loop ---
 # Starting organism health.
