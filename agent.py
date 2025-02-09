@@ -1,7 +1,23 @@
 import random
 import time
-import numpy as np
 import csv
+from web3 import Web3
+
+w3 = Web3(Web3.HTTPProvider("http://127.0.0.1:8545"))
+w3eth = Web3(
+    Web3.HTTPProvider(
+        "https://eth-mainnet.g.alchemy.com/v2/4HvmaqDcH1O3ZNkHhtFZA5ydU2rgV9Sl"
+    )
+)
+
+address = "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+abi = '[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"finalHomeoscore","type":"uint256"}],"name":"Death","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":false,"internalType":"uint256","name":"value","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"newHomeoscore","type":"uint256"}],"name":"Fed","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"marketDropPercentage","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"decreaseAmount","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"newHomeoscore","type":"uint256"}],"name":"MarketEvent","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"newMarketSensitivity","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"newFeedSensitivity","type":"uint256"}],"name":"TraitsUpdated","type":"event"},{"inputs":[],"name":"feed","outputs":[],"stateMutability":"payable","type":"function"},{"inputs":[],"name":"feedSensitivity","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"homeoscore","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"isAlive","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"marketSensitivity","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"marketDropPercentage","type":"uint256"}],"name":"updateMarketEvent","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"newMarketSensitivity","type":"uint256"},{"internalType":"uint256","name":"newFeedSensitivity","type":"uint256"}],"name":"updateTraits","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"withdraw","outputs":[],"stateMutability":"nonpayable","type":"function"}]'
+
+eth_feed_address = "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419"
+eth_feed_abi = '[{"inputs":[],"name":"latestAnswer","outputs":[{"internalType":"int256","name":"","type":"int256"}],"stateMutability":"view","type":"function"}]'
+
+biodroid = w3.eth.contract(address=address, abi=abi)
+eth_feed = w3eth.eth.contract(address=eth_feed_address, abi=eth_feed_abi)
 
 
 def get_hourly_returns(csv_filename):
@@ -44,10 +60,13 @@ ALPHA = 0.1  # Learning rate
 GAMMA = 0.9  # Discount factor
 EPSILON = 0.1  # Exploration probability
 
-# TODO: get these values from the chain
 # Initial trait values.
-market_sensitivity = 5  # Determines the impact of market drops.
-feed_sensitivity = 5  # Determines the impact of feeding.
+market_sensitivity = (
+    biodroid.functions.marketSensitivity().call()
+)  # Determines the impact of market drops.
+feed_sensitivity = (
+    biodroid.functions.feedSensitivity().call()
+)  # Determines the impact of feeding.
 
 returns = get_hourly_returns("ETH_1H.csv")
 returns.reverse()
@@ -61,33 +80,26 @@ def discretize_state(health):
     return int(health // 10)
 
 
-def simulate_environment(health, market_sens, feed_sens):
+def simulate_environment():
     """
     Simulate one time step.
-    - Feed event: a random positive effect, scaled by feed_sensitivity.
-    - Market drop: a random negative event, scaled by market_sensitivity.
+    Unlike normal RL simulation, we directly update the chain
     """
-    # TODO: dynamically get these values
-    feed = random.uniform(0, 10)  # Feed increases health.
-    global return_index
-    global negative
-    # Use the next hourly return from the CSV data
-    if return_index >= len(returns):
-        return_index = 0  # cycle back if we run out
-    market_drop = returns[return_index]
-    return_index += 1
+    # Process market drop if there is one
+    current_price = eth_feed.functions.latestAnswer().call() / 1e8
+    price_last_interval = (
+        eth_feed.functions.latestAnswer().call(block_identifier=-300) / 1e8
+    )
+    last_hour_return = (current_price - price_last_interval) / price_last_interval * 100
+    if last_hour_return < 0:
+        tx = biodroid.functions.updateMarketEvent(abs(last_hour_return)).transact()
+        print(tx)
+        time.sleep(5)
 
-    if market_drop > 0:
-        market_drop = 0
-    else:
-        negative += 1
-        market_drop = abs(market_drop)
+    homeoscore = biodroid.functions.homeoscore().call()
 
-    # Adjust the impact:
-    # For feed, higher feed_sens means a stronger positive effect.
-    # For market, higher market_sens means a stronger negative effect.
-    new_health = health + (feed * feed_sens / 10) - (market_drop * market_sens / 10)
-    return max(0, min(100, new_health))  # Clamp health between 0 and 100.
+    # Return the impact of the last interval:
+    return max(0, min(100, homeoscore))  # Clamp health between 0 and 100.
 
 
 def compute_reward(health):
@@ -95,7 +107,7 @@ def compute_reward(health):
     Reward function: +10 if health is in [40,60], else negative penalty
     proportional to distance from 50.
     """
-    if 45 <= health <= 55:
+    if 40 <= health <= 60:
         return 10
     else:
         return -abs(health - 50) / 2
@@ -119,14 +131,22 @@ def update_Q(state, action, reward, next_state):
     Q[state][action] += ALPHA * (reward + GAMMA * best_next - Q[state][action])
 
 
+def updateTraits(market_sensitivity, feed_sensitivity):
+    """
+    Update the traits onchain before next iteration.
+    """
+    tx = biodroid.functions.updateTraits(
+        market_sensitivity, feed_sensitivity
+    ).transact()
+    print(tx)
+
+
 # --- Live RL Loop ---
 # Starting organism health.
-current_health = 50.0
+current_health = biodroid.functions.homeoscore().call()
 
-# For now we are testing with a number of episodes, in production it will be an infinite loop
 # In a live scenario, each loop represents one decision cycle (e.g., hourly).
-num_episodes = 10000
-for i in range(num_episodes):
+while True:
     # 1. Read the current state (simulate on-chain health)
     state = discretize_state(current_health)
 
@@ -139,16 +159,15 @@ for i in range(num_episodes):
     feed_sensitivity = max(1, min(20, feed_sensitivity + delta_feed))
 
     # 4. Simulate the environment with updated traits.
-    new_health = simulate_environment(
-        current_health, market_sensitivity, feed_sensitivity
-    )
+    new_health = simulate_environment()
 
     # 5. Compute the reward.
     reward = compute_reward(new_health)
 
-    # 6. Discretize new state and update the Q-table.
+    # 6. Discretize new state and update the Q-table as well as onchain traits.
     next_state = discretize_state(new_health)
     update_Q(state, action_idx, reward, next_state)
+    updateTraits(market_sensitivity, feed_sensitivity)
 
     # 7. Log the decision cycle.
     print(
@@ -161,5 +180,4 @@ for i in range(num_episodes):
     current_health = new_health
 
     # 9. Wait until next decision cycle (e.g., one hour; for testing, shorten this interval)
-    time.sleep(0.001)
-print(negative)
+    time.sleep(3600)
